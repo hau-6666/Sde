@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chúc mừng sinh nhật</title>
+
+  <!-- Google Fonts – dễ thương, ngộ nghĩnh -->
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&family=Quicksand:wght@600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ===== CÀI ĐẶT CHUNG ===== */
+    *{box-sizing:border-box;}
+    html,body{
+      margin:0;
+      padding:0;
+      overflow:hidden;
+      font-family:'Comic Neue','Quicksand',cursive;
+      background:radial-gradient(ellipse at center,#ffe6e6 0%,#ffcccc 100%);
+      color:#b30059;
+    }
+
+    /* ===== ĐỒNG HỒ TRÊN CÙNG CĂN GIỮA ===== */
+    .clock {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.2em;
+  background: rgba(255,255,255,0.7);
+  padding: 0.5em 1em;
+  border-radius: 25px;
+  color: #b30059;
+  z-index: 10;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  white-space: nowrap; /* ✅ Giữ trên 1 dòng */
+}
+
+    /* ===== CANVAS MƯA CHỮ ===== */
+    canvas{
+      position:fixed;
+      inset:0;
+      z-index:0;
+    }
+
+    /* ===== KHỐI THÔNG ĐIỆP TRUNG TÂM ===== */
+    .msg{
+      position:fixed;
+      top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      font-size:3em;
+      text-align:center;
+      text-shadow:2px 2px 8px #ffd6e7;
+      z-index:2;
+      opacity:0;
+    }
+    .fade{animation:fade 1s forwards;}
+    @keyframes fade{to{opacity:1;}}
+    @keyframes zoom{from{transform:translate(-50%,-50%) scale(0);} to{transform:translate(-50%,-50%) scale(1);} }
+    .zoom{animation:zoom 0.8s forwards;}
+    @keyframes slide{from{transform:translate(-50%,-60%) translateY(-200px);} to{transform:translate(-50%,-60%) translateY(0);} }
+    .slide{animation:slide 0.9s forwards;}
+    @keyframes rotate{from{transform:translate(-50%,-50%) rotate(-180deg);} to{transform:translate(-50%,-50%) rotate(0);} }
+    .rotate{animation:rotate 1s forwards;}
+
+    /* ===== NÚT DỄ THƯƠNG ===== */
+    .btn{
+      display:inline-block;
+      padding:0.6em 1.4em;
+      margin-top:1em;
+      background:#ff66a3;
+      border:none;
+      border-radius:35px;
+      font-size:0.5em;
+      color:#fff;
+      cursor:pointer;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+      transition:transform .2s;
+    }
+    .btn:hover{transform:scale(1.08);}
+    .btn:active{transform:scale(.95);}
+
+    /* ===== POPUP QUÀ TẶNG ===== */
+    .overlay{
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.4);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:3;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .6s;
+    }
+    .overlay.show{opacity:1;pointer-events:auto;}
+
+    .gift-box{
+      background:#fffafc;
+      border-radius:25px;
+      padding:2.5em 2em;
+      max-width:90vw;
+      width:380px;
+      text-align:center;
+      box-shadow:0 8px 25px rgba(0,0,0,.25);
+      position:relative;
+    }
+    .gift-box h2{
+      margin:0 0 1em;
+      font-size:1.8em;
+      color:#b30059;
+    }
+    .gift-box .top-note{
+      position:absolute;
+      top:-2.2em;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:1.1em;
+      background:#fffafc;
+      padding:0 .6em;
+      border-radius:20px;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+    }
+    .gift-box .btn {
+  display: inline-block;
+  padding: 1em 2.2em;
+  margin-top: 1.5em;
+  background: #ff66a3;
+  border: none;
+  border-radius: 40px;
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s, background 0.3s;
+  width: 80%;
+  max-width: 260px;
+}
+.gift-box .btn:hover {
+  transform: scale(1.05);
+  background: #ff3385;
+}
+  </style>
+</head>
+<body>
+
+  <!-- Đồng hồ thời gian thực căn giữa trên cùng -->
+  <div id="clock" class="clock"></div>
+
+  <!-- Nền mưa chữ lãng mạn -->
+  <canvas id="bg"></canvas>
+
+  <!-- Thông điệp chính -->
+  <div id="msg" class="msg"></div>
+
+  <!-- Popup quà tặng -->
+  <div id="overlay" class="overlay">
+    <div class="gift-box">
+      <div class="top-note"> お誕生日おめでとうございます。</div>
+      <h2>món quà đặc biệt dành cho bạn</h2>
+      <a href="./index.html" class="btn">xem ngay🌸</a>
+    </div>
+  </div>
+
+  <script>
+    /* ========== ĐỒNG HỒ THỜI GIAN THỰC (Asia/Tokyo) ========== */
+    function updateClock(){
+      const now = new Date().toLocaleString('ja-JP',{
+        timeZone:'Asia/Tokyo',
+        hour12:false,
+        year:'numeric',
+        month:'2-digit',
+        day:'2-digit',
+        hour:'2-digit',
+        minute:'2-digit',
+        second:'2-digit'
+      });
+      document.getElementById('clock').textContent = now;
+    }
+    setInterval(updateClock,1000);
+    updateClock();
+
+    /* ========== HIỆU ỨNG MƯA CHỮ ========== */
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    function resize(){
+      canvas.width = innerWidth;
+      canvas.height = innerHeight;
+    }
+    addEventListener('resize',resize);
+    resize();
+
+    const letters = "お誕生日おめでとうございます";
+    const fontSize = 26;
+    const cols = Math.floor(canvas.width / fontSize);
+    const drops = Array(cols).fill(1);
+
+    function rain(){
+      ctx.fillStyle = "rgba(255,240,245,.07)";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = "#ff6699";
+      ctx.font = fontSize + "px serif";
+      drops.forEach((y,i)=>{
+        const text = letters[Math.floor(Math.random()*letters.length)];
+        ctx.fillText(text,i*fontSize,y*fontSize);
+        if(y*fontSize>canvas.height && Math.random()>0.975) drops[i]=0;
+        drops[i]++;
+      });
+    }
+    setInterval(rain,50);
+
+    /* ========== CHUỖI THÔNG ĐIỆP ========== */
+    const msgEl = document.getElementById('msg');
+    const animations = ['fade','zoom','slide','rotate'];
+    const messages = [
+      "Hôm nay là ngày đặc biệt",        // mở đầu
+      "xem ngay🍭",                      // nút
+      "0/0/0000",                        // nội dung 1
+      "Chúc mừng sinh nhật."             // nội dung 2
+    ];
+    let idx = 0;
+
+    function next(){
+      msgEl.className='msg';
+      const anim = animations[Math.floor(Math.random()*animations.length)];
+      msgEl.classList.add(anim);
+      msgEl.style.opacity=0;
+      setTimeout(()=>{msgEl.style.opacity=1;},20);
+
+      if(idx===1){
+        msgEl.innerHTML = `<button class="btn">${messages[idx]}</button>`;
+        msgEl.querySelector('button').onclick = ()=>{idx++;setTimeout(next,100);};
+      }else{
+        msgEl.textContent = messages[idx];
+        if(idx < messages.length-1){
+          setTimeout(()=>{idx++;next();},5000);
+        }else{
+          setTimeout(()=>{document.getElementById('overlay').classList.add('show');},5000);
+        }
+      }
+    }
+    next();
+  </script>
+</body>
+</html>
