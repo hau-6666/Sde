@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>GoLike TikTok Tool (Login + Debug)</title>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; padding: 20px; }
+    input, button { padding: 8px; margin: 5px; width: 90%; }
+    .job { background: #fff; padding: 10px; margin: 10px 0; border-radius: 6px; }
+    #status { font-weight: bold; color: green; }
+    #log { background: #222; color: #eee; padding: 10px; height: 150px; overflow-y: auto; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h2>🔧 GoLike TikTok Tool (Login + Debug)</h2>
+
+  <label>Email:</label><br>
+  <input type="text" id="email" placeholder="Nhập email"><br>
+  <label>Mật khẩu:</label><br>
+  <input type="password" id="password" placeholder="Nhập mật khẩu"><br>
+  <label>Proxy CORS (nếu bị lỗi kết nối):</label><br>
+  <input type="text" id="proxy" placeholder="Ví dụ: https://cors-anywhere.herokuapp.com/"><br>
+  <button onclick="login()">Đăng nhập & Bắt đầu</button>
+
+  <p id="status"></p>
+
+  <h3>Danh sách Job TikTok:</h3>
+  <div id="jobList"></div>
+
+  <h3>Đã làm: <span id="doneCount">0</span> job | Tổng tiền: <span id="totalMoney">0</span>đ</h3>
+
+  <h3>📝 Debug Log</h3>
+  <div id="log">Console sẽ hiện thông tin chi tiết ở đây...</div>
+
+  <script>
+    const logDiv = document.getElementById('log');
+    function debug(msg, obj) {
+      const t = document.createElement('div');
+      t.textContent = msg + (obj !== undefined ? ' ⇒ ' + JSON.stringify(obj) : '');
+      logDiv.appendChild(t);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(msg, obj);
+    }
+
+    let token = "", doneCount = 0, totalMoney = 0, refreshInterval;
+
+    async function login() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const proxy = document.getElementById("proxy").value.trim();
+      if (!email || !password) return alert("Vui lòng nhập đầy đủ!");
+
+      document.getElementById("status").innerText = "⏳ Đang đăng nhập...";
+      debug("Login data", { email });
+
+      try {
+        const res = await fetch((proxy || "") + "https://api.golike.net/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        debug("Login response", data);
+
+        if (data.status === 200 && data.data && data.data.token) {
+          token = data.data.token;
+          document.getElementById("status").innerText = "✅ Đăng nhập thành công!";
+          startAutoRefresh(proxy);
+        } else {
+          document.getElementById("status").innerText = "❌ Đăng nhập thất bại!";
+        }
+      } catch (err) {
+        document.getElementById("status").innerText = "⚠️ Lỗi kết nối login!";
+        debug("Login error", err.toString());
+      }
+    }
+
+    async function getJobs(proxy="") {
+      if (!token) return;
+      document.getElementById("status").innerText = "🔄 Tải job...";
+      debug("Fetching jobs");
+
+      try {
+        const res = await fetch(proxy + "https://api.golike.net/api/jobs/getJobs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ service: "tiktok" })
+        });
+        const data = await res.json();
+        debug("Jobs response", data);
+
+        if (data.status === 200 && Array.isArray(data.data)) {
+          renderJobs(data.data);
+          document.getElementById("status").innerText = "✅ Job đã tải!";
+        } else {
+          document.getElementById("status").innerText = "❌ Lỗi load job!";
+        }
+      } catch (err) {
+        document.getElementById("status").innerText = "⚠️ Lỗi kết nối jobs!";
+        debug("Jobs error", err.toString());
+      }
+    }
+
+    function renderJobs(jobs) {
+      const jobList = document.getElementById("jobList");
+      jobList.innerHTML = "";
+      jobs.forEach(job => {
+        const div = document.createElement("div");
+        div.className = "job";
+        div.innerHTML = `
+          <b>Job:</b> ${job.id} | <b>Tiền:</b> ${job.price}đ <br>
+          <a href="${job.link}" target="_blank">🔗 Xem video</a><br><br>
+          <button onclick="completeJob('${job.id}', ${job.price}, proxy)">Hoàn thành</button>
+        `;
+        jobList.appendChild(div);
+      });
+    }
+
+    function startAutoRefresh(proxy="") {
+      if (refreshInterval) clearInterval(refreshInterval);
+      getJobs(proxy);
+      refreshInterval = setInterval(() => getJobs(proxy), 30000);
+      document.getElementById("status").innerText = "⏳ Tự động refresh job mỗi 30s...";
+    }
+
+    async function completeJob(jobId, price, proxy="") {
+      try {
+        const res = await fetch(proxy + "https://api.golike.net/api/jobs/completeJob", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ job_id: jobId })
+        });
+        const data = await res.json();
+        debug("CompleteJob response", data);
+
+        if (data.status === 200) {
+          alert("✅ Hoàn thành job " + jobId);
+          doneCount++;
+          totalMoney += price || 0;
+          document.getElementById("doneCount").innerText = doneCount;
+          document.getElementById("totalMoney").innerText = totalMoney;
+          getJobs(proxy);
+        } else {
+          alert("❌ Hoàn thành thất bại!");
+        }
+      } catch (err) {
+        alert("⚠️ Lỗi kết nối complete!");
+        debug("Complete error", err.toString());
+      }
+    }
+  </script>
+</body>
+  </html>
